@@ -14,31 +14,18 @@ async function detectlocation() {
     const data = await response.json();
 
     if (data.status === "success") {
-      // Figure out the closest location
-      /*let locationName = 'the UK'; // Default location
-
-            if (data.city && data.city.toLowerCase() !== 'unknown') {
-                locationName = data.city;
-            }
-            else if (data.regionName && data.regionName.toLowerCase() !== 'unknown') {
-                locationName = data.regionName;
-            }
-            else if (data.country) {
-                locationName = data.country;
-            }
-        */
-
       let locationName = "the UK"; // Default location
 
       // Check if this is a UK location
       if (data.countryCode === "GB" || data.country === "United Kingdom") {
-        // For UK locations, prioritize county/region over city
-        if (data.regionName && data.regionName.toLowerCase() !== "unknown") {
+        // For UK locations, prioritize city over region (since region is often just "England")
+        if (data.city && data.city.toLowerCase() !== "unknown") {
+          locationName = data.city;
+        } else if (data.regionName && data.regionName.toLowerCase() !== "unknown" && data.regionName !== "England" && data.regionName !== "Scotland" && data.regionName !== "Wales" && data.regionName !== "Northern Ireland") {
+          // Only use regionName if it's more specific than country parts
           locationName = data.regionName;
         } else if (data.region && data.region.toLowerCase() !== "unknown") {
           locationName = data.region;
-        } else if (data.city && data.city.toLowerCase() !== "unknown") {
-          locationName = data.city;
         }
       } else {
         // For non-UK locations, use city first
@@ -53,6 +40,7 @@ async function detectlocation() {
           locationName = data.country;
         }
       }
+      
       welcomeElement.textContent = `Welcome to ${locationName}`;
       locationElement.textContent = "";
     } else {
@@ -61,18 +49,19 @@ async function detectlocation() {
   } catch (error) {
     console.error("Error fetching location data:", error);
 
-    // Try fallback to a less precise method
+    // Try fallback service
     try {
-      const fallbackResponse = await fetch("https://ipinfo.io/json/");
+      const fallbackResponse = await fetch("https://ipapi.co/json/");
       const fallbackData = await fallbackResponse.json();
 
       if (fallbackData.country === "GB") {
-        if (fallbackData.region) {
-          welcomeElement.textContent = `Welcome to ${fallbackData.region}`;
+        // For UK, prioritize city over region
+        if (fallbackData.city && fallbackData.city !== "unknown") {
+          welcomeElement.textContent = `Welcome to ${fallbackData.city}`;
           locationElement.textContent = "";
           return;
-        } else if (fallbackData.city) {
-          welcomeElement.textContent = `Welcome to ${fallbackData.city}`;
+        } else if (fallbackData.region && fallbackData.region !== "unknown") {
+          welcomeElement.textContent = `Welcome to ${fallbackData.region}`;
           locationElement.textContent = "";
           return;
         }
