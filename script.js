@@ -2,6 +2,40 @@ async function detectlocation() {
   const welcomeElement = document.getElementById("welcome");
   const locationElement = document.getElementById("location");
 
+  if ("geolocation" in navigator) {
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 5000,
+          maximumAge: 300000
+        });
+      });
+
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`,
+        {
+          headers: {
+            'User-Agent': 'LocationWelcome/1.0'
+          }
+        }
+      );
+      const data = await response.json();
+      
+      const locationName = data.address.town || 
+                          data.address.city || 
+                          data.address.village || 
+                          data.address.suburb ||
+                          data.address.county || 
+                          "the UK";
+      
+      welcomeElement.textContent = `Welcome to ${locationName}`;
+      locationElement.textContent = "";
+      return;
+    } catch (geoError) {
+      console.log("Geolocation not available or denied:", geoError.message);
+    }
+  }
+
   try {
     const response = await fetch(
       "http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city"
@@ -14,27 +48,20 @@ async function detectlocation() {
     const data = await response.json();
 
     if (data.status === "success") {
-      let locationName = "the UK"; // Default location
+      let locationName = "the UK";
 
-      // Check if this is a UK location
       if (data.countryCode === "GB" || data.country === "United Kingdom") {
-        // For UK locations, prioritize city over region (since region is often just "England")
         if (data.city && data.city.toLowerCase() !== "unknown") {
           locationName = data.city;
-        } else if (data.regionName && data.regionName.toLowerCase() !== "unknown" && data.regionName !== "England" && data.regionName !== "Scotland" && data.regionName !== "Wales" && data.regionName !== "Northern Ireland") {
-          // Only use regionName if it's more specific than country parts
+        } else if (data.regionName && data.regionName.toLowerCase() !== "unknown") {
           locationName = data.regionName;
         } else if (data.region && data.region.toLowerCase() !== "unknown") {
           locationName = data.region;
         }
       } else {
-        // For non-UK locations, use city first
         if (data.city && data.city.toLowerCase() !== "unknown") {
           locationName = data.city;
-        } else if (
-          data.regionName &&
-          data.regionName.toLowerCase() !== "unknown"
-        ) {
+        } else if (data.regionName && data.regionName.toLowerCase() !== "unknown") {
           locationName = data.regionName;
         } else if (data.country) {
           locationName = data.country;
@@ -49,34 +76,23 @@ async function detectlocation() {
   } catch (error) {
     console.error("Error fetching location data:", error);
 
-    // Try fallback service
     try {
       const fallbackResponse = await fetch("https://ipapi.co/json/");
       const fallbackData = await fallbackResponse.json();
 
-      if (fallbackData.country === "GB") {
-        // For UK, prioritize city over region
-        if (fallbackData.city && fallbackData.city !== "unknown") {
-          welcomeElement.textContent = `Welcome to ${fallbackData.city}`;
-          locationElement.textContent = "";
-          return;
-        } else if (fallbackData.region && fallbackData.region !== "unknown") {
-          welcomeElement.textContent = `Welcome to ${fallbackData.region}`;
-          locationElement.textContent = "";
-          return;
-        }
-      } else if (fallbackData.city) {
+      if (fallbackData.city && fallbackData.city !== "unknown") {
         welcomeElement.textContent = `Welcome to ${fallbackData.city}`;
-        locationElement.textContent = "";
-        return;
+      } else if (fallbackData.region && fallbackData.region !== "unknown") {
+        welcomeElement.textContent = `Welcome to ${fallbackData.region}`;
+      } else {
+        welcomeElement.textContent = "Welcome to the UK";
       }
+      locationElement.textContent = "";
     } catch (fallbackError) {
-      console.error("Fallback error fetching location data:", fallbackError);
+      console.error("Fallback error:", fallbackError);
+      welcomeElement.textContent = "Welcome to the UK";
+      locationElement.textContent = "";
     }
-
-    // Default to the UK
-    welcomeElement.textContent = "Welcome to the UK";
-    locationElement.textContent = "";
   }
 }
 
